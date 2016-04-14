@@ -59,8 +59,8 @@ ChimericPairedEndAligner::ChimericPairedEndAligner(
     // Create single-end aligners.
     singleAligner = new (allocator) BaseAligner(index, maxHits, maxK, maxReadSize,
                                     maxSeedsFromCommandLine,  seedCoverage, minWeightToCheck,extraSearchDepth, noUkkonen, noOrderedEvaluation, noTruncation, &lv, &reverseLV, NULL, allocator);
-    
-    underlyingPairedEndAligner->setLandauVishkin(&lv, &reverseLV);
+    if (NULL != underlyingPairedEndAligner) 
+      underlyingPairedEndAligner->setLandauVishkin(&lv, &reverseLV);
 
     singleSecondary[0] = singleSecondary[1] = NULL;
 }

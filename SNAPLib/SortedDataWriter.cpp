@@ -206,7 +206,7 @@ SortedDataFilter::onNextBatch(
     if (! (writer->getBatch(-1, &fromBuffer, &fromSize, &fromUsed) &&
         writer->getBatch(0, &toBuffer, &toSize, &toUsed)))
     {
-        WriteErrorMessage( "SortedDataFilter::onNextBatch getBatch failed\n");
+        WriteStatusMessage( "SortedDataFilter::onNextBatch getBatch failed\n");
         soft_exit(1);
     }
     size_t target = 0;
@@ -263,11 +263,15 @@ SortedDataFilterSupplier::onClosed(
         }
         return;
     }
+    _int64 mergeStart = timeInMillis();
+    WriteStatusMessage("Starting Timer\n");
     // merge sort into final file
     if (! mergeSort()) {
         WriteErrorMessage( "merge sort failed\n");
         soft_exit(1);
     }
+    _int64 mergeTime = timeInMillis() - mergeStart;
+    WriteStatusMessage("Merging took: %d seconds %.2f minutes\n/Users/chuck ", mergeTime / 1000, mergeTime / (1000.0f * 60));
 }
 
     void

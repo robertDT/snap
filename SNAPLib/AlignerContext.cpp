@@ -85,6 +85,8 @@ void AlignerContext::runAlignment(int argc, const char **argv, const char *versi
 	if (!initialize()) {
 		return;
 	}
+	_int64 alignIterStart = timeInMillis();
+	WriteStatusMessage("Beginning aligner timer.\n");
     extension->initialize();
     
     if (! extension->skipAlignment()) {
@@ -106,6 +108,8 @@ void AlignerContext::runAlignment(int argc, const char **argv, const char *versi
     extension->finishAlignment();
     PrintBigAllocProfile();
     PrintWaitProfile();
+    _int64 alignIterTime = timeInMillis() - alignIterStart;
+    WriteStatusMessage("Aligning took: %d seconds %.2f minutes", alignIterTime / 1000, alignIterTime / (1000 * 60));
 }
 
     void
@@ -231,6 +235,7 @@ AlignerContext::beginIteration()
     readerContext.genome = index != NULL ? index->getGenome() : NULL;
     readerContext.ignoreSecondaryAlignments = options->ignoreSecondaryAlignments;
     readerContext.ignoreSupplementaryAlignments = options->ignoreSecondaryAlignments;   // Maybe we should split them out
+    strncpy(readerContext.junctionSeq, options->junctionSeq, MAX_JUNCTION_TRIM);
     DataSupplier::ExpansionFactor = options->expansionFactor;
 
     typeSpecificBeginIteration();

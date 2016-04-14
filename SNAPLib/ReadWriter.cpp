@@ -232,9 +232,9 @@ SimpleReadWriter::writePair(
 		//
         int addFrontClipping;
         bool writesFit = format->writeRead(context, &lvc, buffer, size, &sizeUsed[first],
-            idLengths[first], reads[first], result->status[first], result->mapq[first], locations[first], result->direction[first], secondaryAlignment,
-            &addFrontClipping, true, first == 0,
-            reads[second], result->status[second], locations[second], result->direction[second]);
+					   idLengths[first], reads[first], result->status[first], result->mapq[first], locations[first], result->direction[first], secondaryAlignment,
+					   &addFrontClipping, true, first == 0,
+					   reads[second], result->mapq[second], result->status[second], locations[second], result->direction[second]);
         if (addFrontClipping != 0) {
 			const Genome::Contig *originalContig = genome->getContigAtLocation(locations[first]);
 			const Genome::Contig *newContig = genome->getContigAtLocation(locations[first] + addFrontClipping);
@@ -261,7 +261,7 @@ SimpleReadWriter::writePair(
             writesFit = format->writeRead(context, &lvc, buffer + sizeUsed[first], size - sizeUsed[first], &sizeUsed[second],
                 idLengths[second], reads[second], result->status[second], result->mapq[second], locations[second], result->direction[second], secondaryAlignment,
                 &addFrontClipping, true, first != 0,
-                reads[first], result->status[first], locations[first], result->direction[first]);
+					  reads[first], result->mapq[first], result->status[first], locations[first], result->direction[first]);
             if (addFrontClipping != 0) {
 				const Genome::Contig *originalContig = genome->getContigAtLocation(locations[second]);
 				const Genome::Contig *newContig = genome->getContigAtLocation(locations[second] + addFrontClipping);

@@ -275,6 +275,7 @@ FASTQReader::getReadFromBuffer(char *buffer, _int64 validBytes, Read *readToUpda
     const char* space = strnchr(id, ' ', lineLengths[0] - 1);
     readToUpdate->init(id, space != NULL ? (unsigned) (space - id) : (unsigned) lineLengths[0] - 1, lines[1], lines[3], lineLengths[1]);
     readToUpdate->clip(context.clipping);
+    readToUpdate->truncateJunction(context.junctionSeq);
     readToUpdate->setBatch(data->getBatch());
     readToUpdate->setReadGroup(context.defaultReadGroup);
 

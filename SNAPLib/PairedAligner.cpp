@@ -36,6 +36,7 @@ Revision History:
 #include "GenomeIndex.h"
 #include "SAM.h"
 #include "ChimericPairedEndAligner.h"
+#include "SeparatePairedEndAligner.h"
 #include "Tables.h"
 #include "AlignerOptions.h"
 #include "AlignerContext.h"
@@ -285,6 +286,9 @@ bool PairedAlignerOptions::parse(const char** argv, int argc, int& n, bool *done
     } else if (strcmp(argv[n], "-ku") == 0) {
         quicklyDropUnpairedReads = false;
         return true;
+    } else if (strcmp(argv[n], "-as") == 0) {
+      alignReadsSeparately = true;
+      return true;
     } else if (strcmp(argv[n], "-mcp") == 0) {
         if (n + 1 < argc) {
             maxCandidatePoolSize = atoi(argv[n+1]);
@@ -316,6 +320,7 @@ bool PairedAlignerContext::initialize()
     intersectingAlignerMaxHits = options2->intersectingAlignerMaxHits;
     ignoreMismatchedIDs = options2->ignoreMismatchedIDs;
     quicklyDropUnpairedReads = options2->quicklyDropUnpairedReads;
+    alignReadsSeparately = options2->alignReadsSeparately;
     noUkkonen = options->noUkkonen;
     noOrderedEvaluation = options->noOrderedEvaluation;
 
@@ -406,25 +411,44 @@ void PairedAlignerContext::runIterationThread()
                                                                 maxCandidatePoolSize, allocator, noUkkonen, noOrderedEvaluation, noTruncation);
 
 
-    ChimericPairedEndAligner *aligner = new (allocator) ChimericPairedEndAligner(
-        index,
-        maxReadSize,
-        maxHits,
-        maxDist,
-        numSeedsFromCommandLine,
-        seedCoverage,
-		minWeightToCheck,
-        forceSpacing,
-        extraSearchDepth,
-        noUkkonen,
-        noOrderedEvaluation,
-		noTruncation,
-        intersectingAligner,
-		minReadLength,
-        allocator);
-
-    allocator->checkCanaries();
-
+    ChimericPairedEndAligner *aligner = NULL;
+    if (alignReadsSeparately) {
+      aligner =new (allocator) SeparatePairedEndAligner(
+							index,
+							maxReadSize,
+						      maxHits,
+							maxDist,
+							numSeedsFromCommandLine,
+							seedCoverage,
+							minWeightToCheck,
+							forceSpacing,
+							extraSearchDepth,
+							noUkkonen,
+							noOrderedEvaluation,
+							noTruncation,
+							minReadLength,
+							allocator);
+    }
+    else {
+      aligner = new (allocator) ChimericPairedEndAligner(
+							 index,
+							 maxReadSize,
+							 maxHits,
+							 maxDist,
+							 numSeedsFromCommandLine,
+							 seedCoverage,
+							 minWeightToCheck,
+							 forceSpacing,
+							 extraSearchDepth,
+							 noUkkonen,
+							 noOrderedEvaluation,
+							 noTruncation,
+							 intersectingAligner,
+							 minReadLength,
+							 allocator);
+    } 
+      allocator->checkCanaries();
+      
     PairedAlignmentResult *secondaryResults = (PairedAlignmentResult *)allocator->allocate(maxPairedSecondaryHits * sizeof(*secondaryResults));
     SingleAlignmentResult *singleSecondaryResults = (SingleAlignmentResult *)allocator->allocate(maxSingleSecondaryHits * sizeof(*singleSecondaryResults));
 

@@ -509,6 +509,7 @@ BAMReader::getReadFromLine(
             read->becomeRC();
         }
         read->clip(clipping);
+	read->truncateJunction(context.junctionSeq);
     }
 
     if (NULL != alignmentResult) {
@@ -566,11 +567,30 @@ public:
         bool sorted, int argc, const char **argv, const char *version, const char *rgLine, bool omitSQLines) const;
 
     virtual bool writeRead(
-        const ReaderContext& context, LandauVishkinWithCigar * lv, char * buffer, size_t bufferSpace,
-        size_t * spaceUsed, size_t qnameLen, Read * read, AlignmentResult result,
-        int mapQuality, GenomeLocation genomeLocation, Direction direction, bool secondaryAlignment, int * o_addFrontClipping,
-        bool hasMate = false, bool firstInPair = false, Read * mate = NULL,
-        AlignmentResult mateResult = NotFound, GenomeLocation mateLocation = 0, Direction mateDirection = FORWARD) const;
+			   const ReaderContext& context, 
+			   LandauVishkinWithCigar * lv,
+			   char * buffer,
+			   size_t bufferSpace,
+			   size_t * spaceUsed,
+			   size_t qnameLen,
+			   Read * read,
+			   AlignmentResult result,
+			   int mapQuality,
+			   GenomeLocation genomeLocation,
+			   Direction direction,
+			   bool secondaryAlignment,
+			   int * o_addFrontClipping,
+			   bool hasMate = false,
+			   bool firstInPair = false,
+			   Read * mate = NULL,
+			   int mateMapQuality = 0,
+			   AlignmentResult mateResult = NotFound,
+			   GenomeLocation mateLocation = 0,
+			   Direction mateDirection = FORWARD) const;
+
+     static char determinePairType(
+        const Read *read, const char *contigName, Direction  direction, GenomeLocation location,
+        const Read *mate, const char * matecontigName, Direction  mateDirection, GenomeLocation mateLocation);
 
 private:
 
@@ -713,6 +733,27 @@ BAMFormat::writeHeader(
     return true;
 }
 
+   char
+BAMFormat::determinePairType(
+			      const Read *read, const char *contigName, Direction  direction, GenomeLocation location,
+			      const Read *mate, const char *mateContigName, Direction  mateDirection, GenomeLocation mateLocation) {
+     if (location == InvalidGenomeLocation || mateLocation == InvalidGenomeLocation || mate == NULL) {
+       return 'U'; // unmapped
+     }
+     if (*mateContigName != '=') {
+       return 'D'; // different contig
+     }
+     if ((direction == RC) == (mateDirection == RC)) {
+       return 'S'; // same?
+     }
+     if ((direction != RC && location < mateLocation + mate->getDataLength()) || (direction == RC && mateLocation < location + read->getDataLength())) {
+       return 'I'; // innie
+     } 
+     return 'O'; // outie
+   }
+
+
+
     bool
 BAMFormat::writeRead(
     const ReaderContext& context,
@@ -731,6 +772,7 @@ BAMFormat::writeRead(
     bool hasMate,
     bool firstInPair,
     Read * mate,
+    int mateMapQuality,
     AlignmentResult mateResult,
     GenomeLocation mateLocation,
     Direction mateDirection) const
@@ -759,13 +801,16 @@ BAMFormat::writeRead(
     GenomeDistance extraBasesClippedBefore;
     unsigned basesClippedAfter;
     int editDistance;
-
+    _uint8 mateMapQ = 0;
+    _uint8 pairType = 0;
+    _uint8 hasJunction = 0;
+    _uint8 mateSize = 0;
     *o_addFrontClipping = 0;
     if (!SAMFormat::createSAMLine(context.genome, lv, data, quality, MAX_READ, contigName, contigIndex,
         flags, positionInContig, mapQuality, mateContigName, mateContigIndex, matePositionInContig, templateLength,
         fullLength, clippedData, clippedLength, basesClippedBefore, basesClippedAfter,
         qnameLen, read, result, genomeLocation, direction, secondaryAlignment, useM,
-        hasMate, firstInPair, mate, mateResult, mateLocation, mateDirection,
+				  hasMate, firstInPair, mate, mateMapQuality, mateResult, mateLocation, mateDirection,
         &extraBasesClippedBefore))
     {
         return false;
@@ -779,7 +824,11 @@ BAMFormat::writeRead(
             return false;
         }
     }
-
+    // For tags
+    mateMapQ =  max(0, min(70, mateMapQuality)); // @cws todo      // FIXME: manifest constant.
+    hasJunction = read->getJunctionTruncated() || (mate == NULL ? 0 : mate->getJunctionTruncated());
+    mateSize = mate == NULL ? 0 : mate->getDataLength();
+    pairType = determinePairType(read, contigName, direction, genomeLocation, mate, mateContigName, mateDirection, mateLocation);
     // Write the BAM entry
     unsigned auxLen;
     bool auxSAM;
@@ -817,6 +866,10 @@ BAMFormat::writeRead(
         }
     }
     bamSize += 12; // NM:C PG:Z:SNAP fields
+    bamSize += 4; // MQIx 3 bytes of tag + 1 byte of number = 4
+    bamSize += 5;   // xt - type of pair. xtCb 3 bytes of tag + 1 byte of data + terminator = 5
+    bamSize += 5;   // xj - junction found and trimmed. xjCb 3 bytes of tag + 1 byte of data + terminator = 5
+    bamSize += 4;   // xs - size of mate. xsCb 3 bytes tag + 1 byte of data = 4
     if (bamSize > bufferSpace) {
         return false;
     }
@@ -903,6 +956,37 @@ BAMFormat::writeRead(
     nm->tag[0] = 'N'; nm->tag[1] = 'M'; nm->val_type = 'C';
     *(_uint8*)nm->value() = (_uint8)editDistance;
     auxLen += (unsigned) nm->size();
+
+    // MQ - Mate Quality  - MQC0 - 4 
+    BAMAlignAux* mq = (BAMAlignAux*) (auxLen + (char*) bam->firstAux());
+    mq->tag[0] = 'M'; mq->tag[1] = 'Q'; mq->val_type = 'C';
+    *(_uint8*)mq->value() = (_uint8)mateMapQ;
+    assert(mq->size() == 4);
+    auxLen += (unsigned) mq->size();
+
+    // xt - Type xtZX0 - 5
+    BAMAlignAux* xt = (BAMAlignAux*) (auxLen + (char*) bam->firstAux());
+    xt->tag[0] = 'x'; xt->tag[1] = 't'; xt->val_type = 'Z';
+    //    *(char*)xt->value() = (_uint8)pairType;
+    //    *((char*)(xt->value() + 1)) = 0;
+    char *value_buffer = (char*) xt->value();
+    sprintf(value_buffer, "%c", pairType);
+    auxLen += (unsigned) xt->size();
+
+    // xs - Mate Size - xsC0 - 4 
+    BAMAlignAux* xs = (BAMAlignAux*) (auxLen + (char*) bam->firstAux());
+    xs->tag[0] = 'x'; xs->tag[1] = 's'; xs->val_type = 'C';
+    *(_uint8*)xs->value() = (_uint8)mateSize;
+    auxLen += (unsigned) xs->size();
+
+    // xj - Junction xjZT0 - 5
+    BAMAlignAux* xj = (BAMAlignAux*) (auxLen + (char*) bam->firstAux());
+    xj->tag[0] = 'x'; xj->tag[1] = 'j'; xj->val_type = 'Z';
+    // *(char*)xj->value() = hasJunction ? 'T' : 'F';
+    // *((char*)(xj->value() + 1)) = 0;
+    value_buffer = (char*) xj->value();
+    sprintf(value_buffer, "%c", (hasJunction ? 'T' : 'F'));
+    auxLen += (unsigned) xj->size();
 
     if (NULL != spaceUsed) {
         *spaceUsed = bamSize;

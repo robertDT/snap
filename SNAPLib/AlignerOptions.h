@@ -30,6 +30,7 @@ Revision History:
 #include "Read.h"
 
 #define MAPQ_LIMIT_FOR_SINGLE_HIT 10
+#define MAX_JUNCTION_TRIM 32
 
 struct AbstractOptions
 {
@@ -94,6 +95,7 @@ struct AlignerOptions : public AbstractOptions
     bool                ignoreSecondaryAlignments; // on input, default true
     int                 maxSecondaryAlignmentAdditionalEditDistance;
 	int					maxSecondaryAlignments;
+    int                 maxSecondaryAlignmentsPerContig;
     bool                preserveClipping;
     float               expansionFactor;
     bool                noUkkonen;
@@ -102,7 +104,8 @@ struct AlignerOptions : public AbstractOptions
 	unsigned			minReadLength;
 	bool				mapIndex;
 	bool				prefetchIndex;
-    
+    size_t              writeBufferSize;
+    char junctionSeq[MAX_JUNCTION_TRIM]; // joining junction for HiC, Chicago, etc reads where we should trim read at.    
     static bool         useHadoopErrorMessages; // This is static because it's global (and I didn't want to push the options object to every place in the code)
     static bool         outputToStdout;         // Likewise
 

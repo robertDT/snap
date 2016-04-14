@@ -87,7 +87,7 @@ AlignerOptions::AlignerOptions(
         maxHits                 = 300;
 		seedCoverage			= 0;
     }
-
+    memset(junctionSeq, 0, MAX_JUNCTION_TRIM);
     initializeLVProbabilitiesToPhredPlus33();
 }
 
@@ -173,6 +173,7 @@ AlignerOptions::usageMessage()
 		"       down execution without improving alignments.\n"
 		"  -nt  Don't truncate searches based on missed seed hits.  This option is purely for evaluating the performance effect\n"
 		"       of candidate truncation, and specifying it will slow down execution without improving alignments.\n"
+		"  -tj XXXXX Assume that pattern XXXXX is indicative of a chimeric read and trim it and sequence after\n"
 		,
             commandLine,
             maxDist,
@@ -470,8 +471,24 @@ AlignerOptions::parse(
             n++;
             minReadLength = atoi(argv[n]);
             return minReadLength > 0;
-        }
-    } else if (strcmp(argv[n], "-dp") == 0) {
+	}
+	} else if (strcmp(argv[n], "-tj") == 0) {
+	  const char * junction = argv[n+1];
+	  if (strlen(junction) > MAX_JUNCTION_TRIM) {
+	    WriteErrorMessage("Error: Only support junctions up to %d bases long for option -tj", MAX_JUNCTION_TRIM);
+	    soft_exit(1);
+	  }
+	  n += 1;
+	  strncpy(junctionSeq, junction, MAX_JUNCTION_TRIM);
+	  // Upper case the string
+	  char *p = junctionSeq;
+	  char *e = junctionSeq + MAX_JUNCTION_TRIM;
+	  while(*p != NULL && p != e)  {
+	    *p = toupper(*p);
+	    p++;
+	  }
+	  return true;
+	} else if (strcmp(argv[n], "-dp") == 0) {
         if (n + 1 < argc) {
             n++;
             maxDistFraction = (float) (0.01 * atof(argv[n]));

@@ -24,7 +24,7 @@ Revision History:
 --*/
 
 #pragma once
-
+#include <string.h>
 #include "Compat.h"
 #include "Tables.h"
 #include "DataReader.h"
@@ -101,6 +101,7 @@ struct ReaderContext
     size_t              headerLength; // length of string
     size_t              headerBytes; // bytes used for header in file
     bool                headerMatchesIndex; // header refseq matches current index
+    char         junctionSeq[32]; // for joined reads junction to trim at.
 };
 
 class ReadReader {
@@ -217,7 +218,7 @@ public:
         Read() :    
             id(NULL), data(NULL), quality(NULL), 
             localBufferAllocationOffset(0),
-            clippingState(NoClipping), currentReadDirection(FORWARD),
+	      clippingState(NoClipping), junctionTruncated(0), currentReadDirection(FORWARD),
             upcaseForwardRead(NULL), auxiliaryData(NULL), auxiliaryDataLength(0),
             readGroup(NULL), originalAlignedLocation(-1), originalMAPQ(-1), originalSAMFlags(0),
             originalFrontClipping(0), originalBackClipping(0), originalFrontHardClipping(0), originalBackHardClipping(0),
@@ -329,6 +330,7 @@ public:
             }
 
             clippingState = other.clippingState;
+	    junctionTruncated = other.junctionTruncated;
             batch = other.batch;
             readGroup = other.readGroup;
             auxiliaryData = other.auxiliaryData;
@@ -389,6 +391,7 @@ public:
             unclippedLength = dataLength;
             frontClippedLength = 0;
             clippingState = NoClipping;
+	    junctionTruncated = 0;
             originalAlignedLocation = i_originalAlignedLocation;
             originalMAPQ = i_originalMAPQ;
             originalSAMFlags = i_originalSAMFlags;
@@ -458,6 +461,31 @@ public:
         inline unsigned getOriginalPNEXT() {return originalPNEXT;}
         inline void addFrontClipping(int clipping)
         { data += clipping; dataLength -= clipping; }
+
+	inline _uint8 getJunctionTruncated() { return junctionTruncated; }
+
+	inline bool truncateJunction(const char *junction) {
+	  if (!(*junction)) {
+	    return false; // no junction do nothing
+	  }
+	  // copy data into a buffer as we can't null terminate mmapped buffer
+	  char buffer[dataLength + 1];
+	  memcpy(buffer, data, dataLength);
+	  buffer[dataLength] = '\0';
+	  // Search for junction
+	  char *data_junction = strstr(buffer, junction);
+	  if (data_junction != NULL) {
+	    assert(data_junction - buffer < dataLength);
+	    // Reduce data length by the size of the region after the junction and increase clipping.
+	    int trim_size = (dataLength - (data_junction - buffer)) - strlen(junction) / 2;
+	    assert(trim_size < dataLength);
+	    dataLength -= trim_size;
+	    assert(dataLength > 0);
+	    junctionTruncated = 1;
+	    return true;
+	  }
+	  return false;
+	}
 
         inline char* getAuxiliaryData(unsigned* o_length, bool * o_isSAM) const
         {
@@ -648,6 +676,7 @@ private:
         unsigned unclippedLength;
         unsigned frontClippedLength;
         ReadClippingType clippingState;
+	_uint8 junctionTruncated; 
 
         //
         // Alignment data that was in the read when it was read from a file.  While this should probably also be the place to put

@@ -2,17 +2,17 @@
 
 Module Name:
 
-    ChimericPairedEndAligner.h
+    SeparatePairedEndAligner.h
 
 Abstract:
 
-    A paired-end aligner calls into a different paired-end aligner, and if
-    it fails to find an alignment, aligns each of the reads singly.  This handles
-    chimeric reads that would otherwise be unalignable.
+    A paired-end aligner that always aligns each read signly and doesn't penalize chimeric
+    reads mapq score. Useful for mate pair libraries that are known to have large and variable
+    insert sizes aligning to denovo assemblies.
 
 Authors:
 
-    Bill Bolosky, June, 2013
+    Chuck Sugnet, December 2014
 
 Environment:
 
@@ -25,12 +25,13 @@ Revision History:
 #pragma once
 
 #include "PairedEndAligner.h"
+#include "ChimericPairedEndAligner.h"
 #include "BaseAligner.h"
 #include "BigAlloc.h"
 
-class ChimericPairedEndAligner : public PairedEndAligner {
+class SeparatePairedEndAligner : public ChimericPairedEndAligner {
 public:
-    ChimericPairedEndAligner(
+    SeparatePairedEndAligner(
         GenomeIndex         *index_,
         unsigned            maxReadSize,
         unsigned            maxHits,
@@ -43,21 +44,14 @@ public:
         bool                noUkkonen,
         bool                noOrderedEvaluation,
 		bool				noTruncation,
-        PairedEndAligner    *underlyingPairedEndAligner_,
 		unsigned			minReadLength_,
         BigAllocator        *allocator);
     
-    virtual ~ChimericPairedEndAligner();
-    
-    static unsigned getMaxSingleEndSecondaryResults(unsigned maxSeedsToUse, double maxSeedCoverage, unsigned maxReadSize, unsigned maxHits, unsigned seedLength)
-    {
-        return BaseAligner::getMaxSecondaryResults(maxSeedsToUse, maxSeedCoverage, maxReadSize, maxHits, seedLength) * NUM_READS_PER_PAIR;
-    }
-
+    virtual ~SeparatePairedEndAligner();
     static size_t getBigAllocatorReservation(GenomeIndex * index, unsigned maxReadSize, unsigned maxHits, unsigned seedLen, unsigned maxSeedsFromCommandLine, 
-                                             double seedCoverage, unsigned maxEditDistanceToConsider, unsigned maxExtraSearchDepth, unsigned maxCandidatePoolSize);
-
-    void *operator new(size_t size, BigAllocator *allocator) {_ASSERT(size == sizeof(ChimericPairedEndAligner)); return allocator->allocate(size);}
+                                             double seedCoverage, unsigned maxEditDistanceToConsider, unsigned maxExtraSearchDepth, unsigned maxCandidatePoolSize, int             maxSecondaryAlignmentsPerContig);
+    
+    void *operator new(size_t size, BigAllocator *allocator) {_ASSERT(size == sizeof(SeparatePairedEndAligner)); return allocator->allocate(size);}
     void operator delete(void *ptr, BigAllocator *allocator) {/* do nothing.  Memory gets cleaned up when the allocator is deleted.*/}
 
     virtual void align(
@@ -78,21 +72,6 @@ public:
     void operator delete(void *ptr) {BigDealloc(ptr);}
 
     virtual _int64 getLocationsScored() const {
-        return underlyingPairedEndAligner->getLocationsScored() + singleAligner->getLocationsScored();
+        return singleAligner->getLocationsScored();
     }
-
-protected:
-   
-    bool        forceSpacing;
-    BaseAligner *singleAligner;
-    PairedEndAligner *underlyingPairedEndAligner;
-
-    // avoid allocation in aligner calls
-    IdPairVector* singleSecondary[2];
-
-    LandauVishkin<1> lv;
-    LandauVishkin<-1> reverseLV;
-
-	GenomeIndex *index;
-	unsigned	minReadLength;
 };

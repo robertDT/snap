@@ -70,6 +70,7 @@ protected:
     const char         *fastqFile1;
     bool                ignoreMismatchedIDs;
     bool                quicklyDropUnpairedReads;
+   bool                alignReadsSeparately;
 
 	friend class AlignerContext2;
 };
@@ -90,4 +91,5 @@ struct PairedAlignerOptions : public AlignerOptions
     unsigned    intersectingAlignerMaxHits;
     unsigned    maxCandidatePoolSize;
     bool        quicklyDropUnpairedReads;
+    bool        alignReadsSeparately;
 };

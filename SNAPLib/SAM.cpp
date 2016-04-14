@@ -968,6 +968,7 @@ SAMFormat::createSAMLine(
     bool hasMate,
     bool firstInPair,
     Read * mate, 
+    int mateMapQuality,
     AlignmentResult mateResult,
     GenomeLocation mateLocation,
     Direction mateDirection,
@@ -1127,6 +1128,7 @@ SAMFormat::writeRead(
     bool hasMate,
     bool firstInPair,
     Read * mate, 
+    int mateMapQuality,
     AlignmentResult mateResult,
     GenomeLocation mateLocation,
     Direction mateDirection
@@ -1163,10 +1165,10 @@ SAMFormat::writeRead(
     *o_addFrontClipping = 0;
 
 	if (!createSAMLine(context.genome, lv, data, quality, MAX_READ, contigName, contigIndex,
-        flags, positionInContig, mapQuality, matecontigName, mateContigIndex, matePositionInContig, templateLength,
-        fullLength, clippedData, clippedLength, basesClippedBefore, basesClippedAfter,
-        qnameLen, read, result, genomeLocation, direction, secondaryAlignment, useM,
-        hasMate, firstInPair, mate, mateResult, mateLocation, mateDirection, 
+			   flags, positionInContig, mapQuality, matecontigName, mateContigIndex, matePositionInContig, templateLength,
+			   fullLength, clippedData, clippedLength, basesClippedBefore, basesClippedAfter,
+			   qnameLen, read, result, genomeLocation, direction, secondaryAlignment, useM,
+			   hasMate, firstInPair, mate, mateMapQuality, mateResult, mateLocation, mateDirection, 
         &extraBasesClippedBefore))
     {
         return false;
